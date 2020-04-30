@@ -1,18 +1,19 @@
 package com.springbatch.CsvToDBBatch;
 
-import com.springbatch.ConsoleItemWriter;
 import com.springbatch.DTO.CsvDTO;
+import com.springbatch.model.CsvModel;
 import com.springbatch.processor.CsvDataProcessor;
 import com.springbatch.utils.BatchConstants;
+import com.zaxxer.hikari.HikariDataSource;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.batch.core.Job;
-import org.springframework.batch.core.Step;
+import org.springframework.batch.core.*;
 import org.springframework.batch.core.configuration.annotation.EnableBatchProcessing;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemWriter;
+import org.springframework.batch.item.database.JpaItemWriter;
 import org.springframework.batch.item.file.FlatFileItemReader;
 import org.springframework.batch.item.file.mapping.BeanWrapperFieldSetMapper;
 import org.springframework.batch.item.file.mapping.DefaultLineMapper;
@@ -22,7 +23,9 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 import org.springframework.core.io.FileSystemResource;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import javax.sql.DataSource;
 
@@ -30,6 +33,9 @@ import javax.sql.DataSource;
 @Configuration
 @EnableBatchProcessing
 public class CsvToDBConfig {
+
+    @Autowired
+    private Environment env;
 
     @Autowired
     private JobBuilderFactory jobs;
@@ -40,8 +46,21 @@ public class CsvToDBConfig {
     @Value("${file.input}")
     private String inputFile;
 
-    public void setDataSource(DataSource dataSource) {
-        //This BatchConfigurer ignores any DataSource
+    @Bean
+    public DataSource getDataSource() {
+        HikariDataSource dataSource = new HikariDataSource();
+        dataSource.setJdbcUrl(env.getProperty(BatchConstants.URL));
+        dataSource.setUsername(env.getProperty(BatchConstants.USER_NAME));
+        dataSource.setPassword(env.getProperty(BatchConstants.PASSWORD));
+        return dataSource;
+    }
+
+    @Bean
+    public JdbcTemplate jdbcTemplate(DataSource dataSource) {
+        return new JdbcTemplate(dataSource);
+    }
+    //Helps to create default batch tables
+    private void setDataSource(DataSource dataSource) {
     }
 
     @Bean
@@ -63,25 +82,24 @@ public class CsvToDBConfig {
         return reader;
         }
 
-
     @Bean
-    public ItemProcessor<CsvDTO, CsvDTO> processor(){
+    public ItemProcessor<CsvDTO, CsvModel> processor(){
         return new CsvDataProcessor();
     }
 
+    //need entity manager factory
     @Bean
-    public ItemWriter<CsvDTO> writer(){
-        return new ConsoleItemWriter();
+    public JpaItemWriter<CsvModel> jpaItemWriter() {
+        JpaItemWriter<CsvModel> writer = new JpaItemWriter();
+        return writer;
     }
-
-    //item writer
 
     @Bean
     protected Step step1(ItemReader<CsvDTO> reader,
-                         ItemProcessor<CsvDTO, CsvDTO> processor,
-                         ItemWriter<CsvDTO> writer) {
+                         ItemProcessor<CsvDTO, CsvModel> processor,
+                         ItemWriter<CsvModel> writer) {
         return steps.get("step1")
-                .<CsvDTO, CsvDTO> chunk(10)
+                .<CsvDTO, CsvModel> chunk(10)
                 .reader(reader)
                 .processor(processor)
                 .writer(writer)

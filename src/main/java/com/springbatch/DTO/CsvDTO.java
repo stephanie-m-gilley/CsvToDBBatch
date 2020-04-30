@@ -44,7 +44,7 @@ public class CsvDTO {
     private String country;
 
     @NotBlank
-    @Pattern(regexp = "[A-Z0-9]{5,9}", message="Zip code must be alphanumeric characters of length 5 to 9." )
+    @Pattern(regexp = "[0-9]{5,9}", message="Zip code must be alphanumeric characters of length 5 to 9." )
     private String zip;
 
 }
